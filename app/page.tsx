@@ -1300,8 +1300,7 @@ export default function Home() {
           </div>
           <div className="pt-8 text-center text-sm text-gray-400">
             <p>
-              © 2024 MediBook. All rights reserved. Made with ❤️ for better
-              healthcare.
+              © 2026 MediBook. All rights reserved. Made by POCO for healthcare.
             </p>
           </div>
         </div>

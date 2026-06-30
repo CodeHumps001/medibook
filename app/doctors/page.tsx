@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,8 +17,10 @@ import {
   ChevronDown,
   ChevronUp,
   HeartPulse,
+  RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import toast from "react-hot-toast";
 
 interface Doctor {
   id: string;
@@ -38,7 +40,8 @@ interface Doctor {
   };
 }
 
-export default function DoctorsPage() {
+// Component that uses useSearchParams - wrapped in Suspense
+function DoctorsContent() {
   const supabase = createClient();
   const searchParams = useSearchParams();
   const specialtyFilter = searchParams.get("specialty");
@@ -52,6 +55,7 @@ export default function DoctorsPage() {
   const [selectedDepartment, setSelectedDepartment] = useState<string>(
     specialtyFilter || "",
   );
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     fetchDoctors();
@@ -64,6 +68,7 @@ export default function DoctorsPage() {
 
   async function fetchDoctors() {
     try {
+      setLoading(true);
       const { data } = await supabase
         .from("doctors")
         .select(
@@ -93,8 +98,10 @@ export default function DoctorsPage() {
       }));
 
       setDoctors(formatted);
+      setFilteredDoctors(formatted);
     } catch (error) {
       console.error("Error fetching doctors:", error);
+      toast.error("Failed to load doctors");
     } finally {
       setLoading(false);
     }
@@ -138,6 +145,13 @@ export default function DoctorsPage() {
     setExpandedDoctor(expandedDoctor === id ? null : id);
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchDoctors();
+    toast.success("Doctors refreshed");
+    setIsRefreshing(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -153,13 +167,28 @@ export default function DoctorsPage() {
     <div className="min-h-screen bg-gray-50 py-8 sm:py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">
-            Our <span className="text-emerald-600">Doctors</span>
-          </h1>
-          <p className="mt-2 text-gray-600">
-            Find and book appointments with our expert healthcare professionals
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-900">
+              Our <span className="text-emerald-600">Doctors</span>
+            </h1>
+            <p className="mt-2 text-gray-600">
+              Find and book appointments with our expert healthcare
+              professionals
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
         </div>
 
         {/* Search and Filter */}
@@ -302,7 +331,7 @@ export default function DoctorsPage() {
                               className="border-emerald-200 text-emerald-600"
                             >
                               <HeartPulse className="w-3.5 h-3.5 mr-1.5" />
-                              View Full Profile
+                              Full Profile
                             </Button>
                           </div>
                         </div>
@@ -316,5 +345,23 @@ export default function DoctorsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function DoctorsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="relative text-center">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto"></div>
+            <p className="mt-4 text-sm text-gray-500">Loading doctors...</p>
+          </div>
+        </div>
+      }
+    >
+      <DoctorsContent />
+    </Suspense>
   );
 }
