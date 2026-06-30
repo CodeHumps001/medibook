@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,9 @@ import {
   Hospital,
   Users,
   Calendar,
+  RefreshCw,
 } from "lucide-react";
+import { useAutoRefresh } from "@/lib/hooks/useAutoRefresh";
 
 interface Department {
   id: string;
@@ -25,24 +27,67 @@ interface Department {
   doctor_count: number;
 }
 
-export default function AdminDepartments() {
+function AdminDepartmentsContent() {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
   });
 
+  // Auto-refresh every 30 seconds
+  const { refresh: autoRefresh } = useAutoRefresh({
+    interval: 30000,
+    enabled: true,
+    onRefresh: async () => {
+      console.log("Auto-refreshing departments...");
+      await fetchDepartments(true);
+    },
+  });
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchDepartments(false);
+    toast.success("Departments refreshed");
+    setIsRefreshing(false);
+  };
+
   useEffect(() => {
     fetchDepartments();
+
+    // Real-time subscription for departments
+    const channel = supabase
+      .channel("admin-departments-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "departments",
+        },
+        (payload) => {
+          console.log("Department changed (realtime):", payload);
+          fetchDepartments(true);
+        },
+      )
+      .subscribe((status) => {
+        console.log("Realtime subscription status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  async function fetchDepartments() {
+  async function fetchDepartments(silent = false) {
     try {
+      if (!silent) setLoading(true);
+
       const { data, error } = await supabase
         .from("departments")
         .select(
@@ -72,7 +117,7 @@ export default function AdminDepartments() {
 
       setDepartments(departmentsWithCounts);
     } catch (error: any) {
-      toast.error("Failed to load departments");
+      if (!silent) toast.error("Failed to load departments");
       console.error(error);
     } finally {
       setLoading(false);
@@ -106,7 +151,7 @@ export default function AdminDepartments() {
       setShowAddModal(false);
       setEditingId(null);
       setFormData({ name: "", description: "" });
-      fetchDepartments();
+      await fetchDepartments(true);
     } catch (error: any) {
       toast.error(error.message || "Failed to save department");
       console.error(error);
@@ -124,7 +169,7 @@ export default function AdminDepartments() {
 
       toast.success("Department deleted successfully");
       setShowDeleteModal(null);
-      fetchDepartments();
+      await fetchDepartments(true);
     } catch (error: any) {
       toast.error("Failed to delete department");
       console.error(error);
@@ -140,7 +185,7 @@ export default function AdminDepartments() {
     (d) => d.doctor_count > 0,
   ).length;
 
-  if (loading) {
+  if (loading && !isRefreshing) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <div className="relative text-center">
@@ -156,31 +201,48 @@ export default function AdminDepartments() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
             Departments
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Manage all medical departments in the system
+            {isRefreshing && (
+              <span className="text-emerald-500 ml-2">(Refreshing...)</span>
+            )}
           </p>
         </div>
-        <Button
-          onClick={() => {
-            setEditingId(null);
-            setFormData({ name: "", description: "" });
-            setShowAddModal(true);
-          }}
-          className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:shadow-lg hover:shadow-emerald-500/25 transition-all"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Department
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="border-gray-300 dark:border-slate-600"
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
+          <Button
+            onClick={() => {
+              setEditingId(null);
+              setFormData({ name: "", description: "" });
+              setShowAddModal(true);
+            }}
+            className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:shadow-lg hover:shadow-emerald-500/25 transition-all"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Department
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Card className="p-4">
           <p className="text-xs text-gray-500">Total Departments</p>
-          <p className="text-xl font-bold text-gray-900">
+          <p className="text-xl font-bold text-gray-900 dark:text-white">
             {departments.length}
           </p>
         </Card>
@@ -218,7 +280,7 @@ export default function AdminDepartments() {
           departments.map((dept) => (
             <Card
               key={dept.id}
-              className="p-6 hover:shadow-lg transition-all duration-300 group border border-gray-100 hover:border-emerald-200"
+              className="p-6 hover:shadow-lg transition-all duration-300 group border border-gray-100 dark:border-slate-700 hover:border-emerald-200 dark:hover:border-emerald-800"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-3 flex-1">
@@ -394,5 +456,23 @@ export default function AdminDepartments() {
         </div>
       )}
     </div>
+  );
+}
+
+// Main export with Suspense
+export default function AdminDepartments() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="relative text-center">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto"></div>
+            <p className="mt-4 text-sm text-gray-500">Loading departments...</p>
+          </div>
+        </div>
+      }
+    >
+      <AdminDepartmentsContent />
+    </Suspense>
   );
 }

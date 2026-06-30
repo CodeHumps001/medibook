@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,9 @@ import {
   Building2,
   ChevronDown,
   Eye,
+  RefreshCw,
 } from "lucide-react";
+import { useAutoRefresh } from "@/lib/hooks/useAutoRefresh";
 
 interface Appointment {
   id: string;
@@ -33,7 +35,7 @@ interface Appointment {
   created_at: string;
 }
 
-export default function AdminAppointments() {
+function AdminAppointmentsContent() {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -42,13 +44,56 @@ export default function AdminAppointments() {
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Auto-refresh every 30 seconds for admin
+  const { refresh: autoRefresh } = useAutoRefresh({
+    interval: 30000,
+    enabled: true,
+    onRefresh: async () => {
+      console.log("Auto-refreshing admin appointments...");
+      await fetchAppointments(true);
+    },
+  });
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchAppointments(false);
+    toast.success("Appointments refreshed");
+    setIsRefreshing(false);
+  };
 
   useEffect(() => {
     fetchAppointments();
+
+    // Real-time subscription for appointments
+    const channel = supabase
+      .channel("admin-appointments-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "appointments",
+        },
+        (payload) => {
+          console.log("Appointment changed (realtime):", payload);
+          fetchAppointments(true);
+        },
+      )
+      .subscribe((status) => {
+        console.log("Realtime subscription status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  async function fetchAppointments() {
+  async function fetchAppointments(silent = false) {
     try {
+      if (!silent) setLoading(true);
+
       const { data, error } = await supabase
         .from("appointments")
         .select(
@@ -84,7 +129,7 @@ export default function AdminAppointments() {
 
       setAppointments(formatted);
     } catch (error: any) {
-      toast.error("Failed to load appointments");
+      if (!silent) toast.error("Failed to load appointments");
       console.error(error);
     } finally {
       setLoading(false);
@@ -101,7 +146,7 @@ export default function AdminAppointments() {
       if (error) throw error;
 
       toast.success(`Appointment ${status}`);
-      fetchAppointments();
+      await fetchAppointments(true);
     } catch (error: any) {
       toast.error("Failed to update status");
       console.error(error);
@@ -149,7 +194,6 @@ export default function AdminAppointments() {
     return matchesSearch && matchesStatus;
   });
 
-  // Calculate stats
   const stats = {
     total: appointments.length,
     pending: appointments.filter((a) => a.status === "pending").length,
@@ -158,7 +202,7 @@ export default function AdminAppointments() {
     rejected: appointments.filter((a) => a.status === "rejected").length,
   };
 
-  if (loading) {
+  if (loading && !isRefreshing) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <div className="relative text-center">
@@ -174,20 +218,35 @@ export default function AdminAppointments() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
             Appointments
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Manage all appointments across the system
+            {isRefreshing && (
+              <span className="text-emerald-500 ml-2">(Refreshing...)</span>
+            )}
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleManualRefresh}
+          disabled={isRefreshing}
+          className="border-gray-300 dark:border-slate-600"
+        >
+          <RefreshCw
+            className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
+          />
+          Refresh
+        </Button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <Card className="p-3 sm:p-4">
           <p className="text-xs text-gray-500">Total</p>
-          <p className="text-lg sm:text-xl font-bold text-gray-900">
+          <p className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
             {stats.total}
           </p>
         </Card>
@@ -331,7 +390,9 @@ export default function AdminAppointments() {
                     </td>
                     <td className="py-3 px-3 sm:px-4">
                       <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(appointment.status)}`}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(
+                          appointment.status,
+                        )}`}
                       >
                         {getStatusIcon(appointment.status)}
                         {getStatusLabel(appointment.status)}
@@ -466,7 +527,9 @@ export default function AdminAppointments() {
                     <span className="text-gray-700 dark:text-gray-300">
                       Status:{" "}
                       <span
-                        className={`font-medium ${getStatusColor(selectedAppointment.status)}`}
+                        className={`font-medium ${getStatusColor(
+                          selectedAppointment.status,
+                        )}`}
                       >
                         {getStatusLabel(selectedAppointment.status)}
                       </span>
@@ -495,5 +558,25 @@ export default function AdminAppointments() {
         </div>
       )}
     </div>
+  );
+}
+
+// Main export with Suspense
+export default function AdminAppointments() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="relative text-center">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto"></div>
+            <p className="mt-4 text-sm text-gray-500">
+              Loading appointments...
+            </p>
+          </div>
+        </div>
+      }
+    >
+      <AdminAppointmentsContent />
+    </Suspense>
   );
 }

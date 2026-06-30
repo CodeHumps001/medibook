@@ -13,7 +13,38 @@ import {
   Activity,
   ArrowUp,
   ArrowDown,
+  TrendingUp,
+  BarChart3,
+  PieChart,
 } from "lucide-react";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  PointElement,
+  LineElement,
+  Filler,
+} from "chart.js";
+import { Bar, Line, Doughnut } from "react-chartjs-2";
+
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+  PointElement,
+  LineElement,
+  Filler,
+);
 
 interface Stats {
   totalPatients: number;
@@ -24,9 +55,10 @@ interface Stats {
   rejectedAppointments: number;
   completedAppointments: number;
   todayAppointments: number;
+  weeklyAppointments: number[];
+  monthlyAppointments: number[];
 }
 
-// Fix: Update Activity interface to match actual Supabase response
 interface Activity {
   id: string;
   appointment_date: string;
@@ -56,8 +88,13 @@ export default function AdminDashboard() {
     rejectedAppointments: 0,
     completedAppointments: 0,
     todayAppointments: 0,
+    weeklyAppointments: [0, 0, 0, 0, 0, 0, 0],
+    monthlyAppointments: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   });
   const [recentActivity, setRecentActivity] = useState<Activity[]>([]);
+  const [selectedChart, setSelectedChart] = useState<"weekly" | "monthly">(
+    "weekly",
+  );
 
   useEffect(() => {
     fetchStats();
@@ -75,9 +112,39 @@ export default function AdminDashboard() {
 
       const { data: appointments } = await supabase
         .from("appointments")
-        .select("status, appointment_date");
+        .select("status, appointment_date, created_at");
 
       const today = new Date().toISOString().split("T")[0];
+
+      // Calculate weekly appointments
+      const weeklyData = [0, 0, 0, 0, 0, 0, 0];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - (6 - i));
+        const dateStr = date.toISOString().split("T")[0];
+        weeklyData[i] =
+          appointments?.filter((a) => a.appointment_date === dateStr).length ||
+          0;
+      }
+
+      // Calculate monthly appointments
+      const monthlyData = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+      const currentMonth = new Date().getMonth();
+      for (let i = 0; i < 12; i++) {
+        const monthIndex = (currentMonth - 11 + i + 12) % 12;
+        const year = new Date().getFullYear();
+        const date = new Date(year, monthIndex, 1);
+        const startOfMonth = date.toISOString().split("T")[0];
+        const endOfMonth = new Date(year, monthIndex + 1, 1)
+          .toISOString()
+          .split("T")[0];
+        monthlyData[i] =
+          appointments?.filter(
+            (a) =>
+              a.appointment_date >= startOfMonth &&
+              a.appointment_date < endOfMonth,
+          ).length || 0;
+      }
 
       setStats({
         totalPatients: patients || 0,
@@ -93,6 +160,8 @@ export default function AdminDashboard() {
           appointments?.filter((a) => a.status === "completed").length || 0,
         todayAppointments:
           appointments?.filter((a) => a.appointment_date === today).length || 0,
+        weeklyAppointments: weeklyData,
+        monthlyAppointments: monthlyData,
       });
 
       const { data: recent } = await supabase
@@ -118,7 +187,6 @@ export default function AdminDashboard() {
         .order("created_at", { ascending: false })
         .limit(5);
 
-      // Fix: Properly map the data to match Activity interface
       if (recent) {
         const mappedActivity: Activity[] = recent.map((item: any) => ({
           id: item.id,
@@ -176,6 +244,133 @@ export default function AdminDashboard() {
       default:
         return null;
     }
+  };
+
+  // Chart Data
+  const barChartData = {
+    labels:
+      selectedChart === "weekly"
+        ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        : [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+          ],
+    datasets: [
+      {
+        label: "Appointments",
+        data:
+          selectedChart === "weekly"
+            ? stats.weeklyAppointments
+            : stats.monthlyAppointments,
+        backgroundColor: [
+          "rgba(99, 102, 241, 0.7)",
+          "rgba(99, 102, 241, 0.7)",
+          "rgba(99, 102, 241, 0.7)",
+          "rgba(99, 102, 241, 0.7)",
+          "rgba(99, 102, 241, 0.7)",
+          "rgba(99, 102, 241, 0.7)",
+          "rgba(99, 102, 241, 0.7)",
+        ],
+        borderColor: "rgba(99, 102, 241, 1)",
+        borderWidth: 2,
+        borderRadius: 8,
+        barPercentage: 0.6,
+      },
+    ],
+  };
+
+  const lineChartData = {
+    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    datasets: [
+      {
+        label: "Appointments",
+        data: stats.weeklyAppointments,
+        fill: true,
+        backgroundColor: "rgba(99, 102, 241, 0.1)",
+        borderColor: "rgba(99, 102, 241, 1)",
+        tension: 0.4,
+        pointBackgroundColor: "rgba(99, 102, 241, 1)",
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+        pointRadius: 4,
+      },
+    ],
+  };
+
+  const doughnutData = {
+    labels: ["Pending", "Approved", "Completed", "Rejected"],
+    datasets: [
+      {
+        data: [
+          stats.pendingAppointments,
+          stats.approvedAppointments,
+          stats.completedAppointments,
+          stats.rejectedAppointments,
+        ],
+        backgroundColor: [
+          "rgba(234, 179, 8, 0.8)",
+          "rgba(34, 197, 94, 0.8)",
+          "rgba(59, 130, 246, 0.8)",
+          "rgba(239, 68, 68, 0.8)",
+        ],
+        borderColor: [
+          "rgba(234, 179, 8, 1)",
+          "rgba(34, 197, 94, 1)",
+          "rgba(59, 130, 246, 1)",
+          "rgba(239, 68, 68, 1)",
+        ],
+        borderWidth: 2,
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: {
+          color: "rgba(0, 0, 0, 0.05)",
+        },
+      },
+      x: {
+        grid: {
+          display: false,
+        },
+      },
+    },
+  };
+
+  const doughnutOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: "70%",
+    plugins: {
+      legend: {
+        position: "bottom" as const,
+        labels: {
+          padding: 20,
+          usePointStyle: true,
+          pointStyle: "circle",
+        },
+      },
+    },
   };
 
   const statCards = [
@@ -236,29 +431,32 @@ export default function AdminDashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
             Dashboard
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Overview of your healthcare system performance
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full">
+          <span className="text-xs text-gray-400 bg-gray-50 dark:bg-slate-800 px-3 py-1 rounded-full">
             Last updated: Today
           </span>
         </div>
       </div>
 
-      {/* Stats Grid - Mobile First */}
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 xs:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {statCards.map((stat, index) => {
           const Icon = stat.icon;
           const colorClasses = {
-            blue: "bg-blue-50 text-blue-600",
-            emerald: "bg-emerald-50 text-emerald-600",
-            purple: "bg-purple-50 text-purple-600",
-            orange: "bg-orange-50 text-orange-600",
+            blue: "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
+            emerald:
+              "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400",
+            purple:
+              "bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
+            orange:
+              "bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400",
           };
           return (
             <Card
@@ -267,10 +465,10 @@ export default function AdminDashboard() {
             >
               <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs sm:text-sm font-medium text-gray-500 truncate">
+                  <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
                     {stat.title}
                   </p>
-                  <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mt-1">
                     {stat.value.toLocaleString()}
                   </p>
                   {stat.change && (
@@ -308,7 +506,72 @@ export default function AdminDashboard() {
         })}
       </div>
 
-      {/* Status Breakdown - Responsive Grid */}
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Bar Chart */}
+        <Card className="lg:col-span-2 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+              Appointment Trends
+            </h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSelectedChart("weekly")}
+                className={`px-3 py-1 text-xs rounded-lg transition-all ${
+                  selectedChart === "weekly"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
+                }`}
+              >
+                Weekly
+              </button>
+              <button
+                onClick={() => setSelectedChart("monthly")}
+                className={`px-3 py-1 text-xs rounded-lg transition-all ${
+                  selectedChart === "monthly"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
+                }`}
+              >
+                Monthly
+              </button>
+            </div>
+          </div>
+          <div className="h-64">
+            <Bar data={barChartData} options={chartOptions} />
+          </div>
+        </Card>
+
+        {/* Doughnut Chart */}
+        <Card className="p-6">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
+            Status Distribution
+          </h3>
+          <div className="h-64">
+            <Doughnut data={doughnutData} options={doughnutOptions} />
+          </div>
+        </Card>
+      </div>
+
+      {/* Line Chart - Weekly Trend */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+            Weekly Trend
+          </h3>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
+              <span className="text-xs text-gray-500">Appointments</span>
+            </div>
+          </div>
+        </div>
+        <div className="h-48">
+          <Line data={lineChartData} options={chartOptions} />
+        </div>
+      </Card>
+
+      {/* Status Breakdown */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {statusBreakdown.map((item) => {
           const percentage = stats.totalAppointments
@@ -329,7 +592,7 @@ export default function AdminDashboard() {
           return (
             <Card key={item.label} className="p-3 sm:p-4">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs sm:text-sm text-gray-600">
+                <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                   {item.label}
                 </span>
                 <span
@@ -338,7 +601,7 @@ export default function AdminDashboard() {
                   {item.value}
                 </span>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-1.5 sm:h-2">
+              <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-1.5 sm:h-2">
                 <div
                   className={`${colorMap[item.color as keyof typeof colorMap]} h-1.5 sm:h-2 rounded-full transition-all duration-500`}
                   style={{ width: `${percentage}%` }}
@@ -355,10 +618,10 @@ export default function AdminDashboard() {
       {/* Recent Activity */}
       <Card className="p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
-          <h2 className="text-base sm:text-lg font-semibold text-gray-900">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
             Recent Activity
           </h2>
-          <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full self-start sm:self-auto">
+          <span className="text-xs text-gray-400 bg-gray-50 dark:bg-slate-800 px-3 py-1 rounded-full self-start sm:self-auto">
             Last 5 appointments
           </span>
         </div>
@@ -378,17 +641,17 @@ export default function AdminDashboard() {
               return (
                 <div
                   key={activity.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-gray-50 dark:bg-slate-800/50 hover:bg-gray-100 dark:hover:bg-slate-700/50 transition-colors"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-semibold text-xs flex-shrink-0">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-semibold text-xs flex-shrink-0">
                       {patientName.charAt(0) || "P"}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">
+                      <p className="text-xs sm:text-sm font-medium text-gray-900 dark:text-white truncate">
                         {patientName} → Dr. {doctorName}
                       </p>
-                      <p className="text-[10px] sm:text-xs text-gray-500">
+                      <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
                         {new Date(activity.appointment_date).toLocaleDateString(
                           "en-US",
                           {

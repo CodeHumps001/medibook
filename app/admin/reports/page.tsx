@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,6 +51,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { useAutoRefresh } from "@/lib/hooks/useAutoRefresh";
 
 ChartJS.register(
   CategoryScale,
@@ -79,10 +80,11 @@ interface ReportData {
   doctorStats: { name: string; appointments: number; patients: number }[];
 }
 
-export default function ReportsPage() {
+function ReportsContent() {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [reportData, setReportData] = useState<ReportData>({
     totalPatients: 0,
     totalDoctors: 0,
@@ -96,16 +98,54 @@ export default function ReportsPage() {
     dailyData: [],
     doctorStats: [],
   });
-  const [dateRange, setDateRange] = useState({ start: "", end: "" });
-  const [reportType, setReportType] = useState("all");
+
+  // Auto-refresh every 30 seconds
+  const { refresh: autoRefresh } = useAutoRefresh({
+    interval: 30000,
+    enabled: true,
+    onRefresh: async () => {
+      console.log("Auto-refreshing reports...");
+      await fetchReportData(true);
+    },
+  });
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchReportData(false);
+    toast.success("Reports refreshed");
+    setIsRefreshing(false);
+  };
 
   useEffect(() => {
     fetchReportData();
+
+    // Real-time subscription for appointments
+    const channel = supabase
+      .channel("reports-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "appointments",
+        },
+        (payload) => {
+          console.log("Appointment changed (realtime):", payload);
+          fetchReportData(true);
+        },
+      )
+      .subscribe((status) => {
+        console.log("Realtime subscription status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  async function fetchReportData() {
+  async function fetchReportData(silent = false) {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       // Get all appointments
       const { data: appointments } = await supabase
@@ -123,7 +163,6 @@ export default function ReportsPage() {
 
       // Get monthly data
       const monthlyData = Array(12).fill(0);
-      const currentMonth = new Date().getMonth();
       appointments?.forEach((a: any) => {
         const month = new Date(a.created_at).getMonth();
         monthlyData[month]++;
@@ -159,15 +198,15 @@ export default function ReportsPage() {
       }
 
       // Get doctor stats
-      const doctorStats = await Promise.all(
-        (
-          await supabase.from("doctors").select(`
+      const { data: doctorsData } = await supabase.from("doctors").select(`
           id,
           profiles (
             full_name
           )
-        `)
-        ).data?.map(async (doc: any) => {
+        `);
+
+      const doctorStats = await Promise.all(
+        (doctorsData || []).map(async (doc: any) => {
           const { count: appCount } = await supabase
             .from("appointments")
             .select("*", { count: "exact", head: true })
@@ -176,9 +215,9 @@ export default function ReportsPage() {
           return {
             name: doc.profiles?.full_name || "Unknown",
             appointments: appCount || 0,
-            patients: 0, // Would need additional query
+            patients: 0,
           };
-        }) || [],
+        }),
       );
 
       setReportData({
@@ -201,7 +240,7 @@ export default function ReportsPage() {
       });
     } catch (error) {
       console.error("Error fetching report data:", error);
-      toast.error("Failed to load report data");
+      if (!silent) toast.error("Failed to load report data");
     } finally {
       setLoading(false);
     }
@@ -267,7 +306,6 @@ export default function ReportsPage() {
         styles: { fontSize: 10 },
       });
 
-      // Save PDF
       doc.save("medibook-report.pdf");
       toast.success("PDF downloaded successfully!");
     } catch (error) {
@@ -519,7 +557,7 @@ export default function ReportsPage() {
     },
   };
 
-  if (loading) {
+  if (loading && !isRefreshing) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <div className="relative">
@@ -540,9 +578,24 @@ export default function ReportsPage() {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Generate and export detailed analytics reports
+            {isRefreshing && (
+              <span className="text-emerald-500 ml-2">(Refreshing...)</span>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="border-gray-300 dark:border-slate-600"
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -591,14 +644,6 @@ export default function ReportsPage() {
           >
             <PrinterIcon className="w-4 h-4 mr-2" />
             Print
-          </Button>
-          <Button
-            size="sm"
-            onClick={fetchReportData}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh
           </Button>
         </div>
       </div>
@@ -830,5 +875,23 @@ export default function ReportsPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+// Main export with Suspense
+export default function ReportsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+            <p className="mt-4 text-sm text-gray-500">Loading reports...</p>
+          </div>
+        </div>
+      }
+    >
+      <ReportsContent />
+    </Suspense>
   );
 }

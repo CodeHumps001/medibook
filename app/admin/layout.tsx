@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import toast from "react-hot-toast";
 import {
   LayoutDashboard,
@@ -19,11 +20,7 @@ import {
   X,
   Shield,
   Home,
-  UserCog,
-  Hospital,
-  CalendarDays,
-  BarChart3,
-  ChevronDown,
+  Power,
 } from "lucide-react";
 
 export default function AdminLayout({
@@ -37,7 +34,6 @@ export default function AdminLayout({
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
     getUser();
@@ -95,7 +91,6 @@ export default function AdminLayout({
       icon: Calendar,
     },
     { name: "Reports", href: "/admin/reports", icon: FileText },
-    { name: "Settings", href: "/admin/settings", icon: Settings },
   ];
 
   // Mobile bottom navigation
@@ -106,7 +101,7 @@ export default function AdminLayout({
     {
       name: "Appointments",
       href: "/admin/appointments",
-      icon: CalendarDays,
+      icon: Calendar,
     },
     { name: "More", href: "#", icon: Menu, isMore: true },
   ];
@@ -134,27 +129,36 @@ export default function AdminLayout({
             <span className="text-sm font-bold text-gray-900 dark:text-white">
               Medi<span className="text-emerald-600">Book</span>
             </span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-[10px] px-2 py-0.5">
               Admin
-            </span>
+            </Badge>
           </div>
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition"
-          >
-            {sidebarOpen ? (
-              <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-            ) : (
-              <Menu className="w-5 h-5 text-gray-600 dark:text-gray-300" />
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleLogout}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition text-red-500"
+              title="Logout"
+            >
+              <Power className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition"
+            >
+              {sidebarOpen ? (
+                <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              ) : (
+                <Menu className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Desktop Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 z-40 w-64 h-full bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700
+          fixed top-0 left-0 z-[999] w-64 h-full bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700
           transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0
@@ -169,9 +173,27 @@ export default function AdminLayout({
             <span className="text-lg font-bold text-gray-900 dark:text-white">
               Medi<span className="text-emerald-600">Book</span>
             </span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 px-2 py-0.5 rounded-full ml-1">
+            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-[10px] px-2 py-0.5 ml-1">
               Admin
-            </span>
+            </Badge>
+          </div>
+
+          {/* Mobile Sidebar Header */}
+          <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/25">
+                <Shield className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-sm font-bold text-gray-900 dark:text-white">
+                Medi<span className="text-emerald-600">Book</span>
+              </span>
+            </div>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition"
+            >
+              <X className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+            </button>
           </div>
 
           {/* Navigation */}
@@ -273,7 +295,7 @@ export default function AdminLayout({
       {/* Overlay */}
       {sidebarOpen && (
         <div
-          className="lg:hidden fixed inset-0 z-30 bg-black/50 backdrop-blur-sm"
+          className="lg:hidden fixed inset-0 z-[998] bg-black/50 backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
       )}

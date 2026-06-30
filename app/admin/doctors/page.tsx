@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,9 @@ import {
   Building2,
   User,
   Clock,
+  RefreshCw,
 } from "lucide-react";
+import { useAutoRefresh } from "@/lib/hooks/useAutoRefresh";
 
 interface Doctor {
   id: string;
@@ -37,7 +39,7 @@ interface Doctor {
   appointment_count: number;
 }
 
-export default function AdminDoctors() {
+function AdminDoctorsContent() {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -47,6 +49,7 @@ export default function AdminDoctors() {
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [newDoctor, setNewDoctor] = useState({
     full_name: "",
     email: "",
@@ -57,9 +60,49 @@ export default function AdminDoctors() {
     consultation_fee: "",
   });
 
+  // Auto-refresh every 30 seconds
+  const { refresh: autoRefresh } = useAutoRefresh({
+    interval: 30000,
+    enabled: true,
+    onRefresh: async () => {
+      console.log("Auto-refreshing doctors...");
+      await fetchDoctors(true);
+    },
+  });
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchDoctors(false);
+    toast.success("Doctors refreshed");
+    setIsRefreshing(false);
+  };
+
   useEffect(() => {
     fetchDoctors();
     fetchDepartments();
+
+    // Real-time subscription for doctors
+    const channel = supabase
+      .channel("admin-doctors-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "doctors",
+        },
+        (payload) => {
+          console.log("Doctor changed (realtime):", payload);
+          fetchDoctors(true);
+        },
+      )
+      .subscribe((status) => {
+        console.log("Realtime subscription status:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function fetchDepartments() {
@@ -67,8 +110,10 @@ export default function AdminDoctors() {
     setDepartments(data || []);
   }
 
-  async function fetchDoctors() {
+  async function fetchDoctors(silent = false) {
     try {
+      if (!silent) setLoading(true);
+
       const { data, error } = await supabase
         .from("doctors")
         .select(
@@ -113,7 +158,7 @@ export default function AdminDoctors() {
 
       setDoctors(doctorsWithCounts);
     } catch (error: any) {
-      toast.error("Failed to load doctors");
+      if (!silent) toast.error("Failed to load doctors");
       console.error(error);
     } finally {
       setLoading(false);
@@ -130,7 +175,7 @@ export default function AdminDoctors() {
       if (error) throw error;
 
       toast.success(`Doctor ${!currentStatus ? "activated" : "deactivated"}`);
-      fetchDoctors();
+      await fetchDoctors(true);
     } catch (error: any) {
       toast.error("Failed to update status");
       console.error(error);
@@ -145,7 +190,7 @@ export default function AdminDoctors() {
 
       toast.success("Doctor deleted successfully");
       setShowDeleteModal(null);
-      fetchDoctors();
+      await fetchDoctors(true);
     } catch (error: any) {
       toast.error("Failed to delete doctor");
       console.error(error);
@@ -162,6 +207,10 @@ export default function AdminDoctors() {
           data: {
             full_name: newDoctor.full_name,
             role: "doctor",
+            specialization: newDoctor.specialization,
+            qualification: newDoctor.qualification,
+            department_id: newDoctor.department_id,
+            consultation_fee: newDoctor.consultation_fee,
           },
         },
       });
@@ -191,7 +240,7 @@ export default function AdminDoctors() {
           qualification: "",
           consultation_fee: "",
         });
-        fetchDoctors();
+        await fetchDoctors(true);
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to add doctor");
@@ -207,7 +256,7 @@ export default function AdminDoctors() {
       d.department.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  if (loading) {
+  if (loading && !isRefreshing) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <div className="relative text-center">
@@ -223,14 +272,29 @@ export default function AdminDoctors() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
             Doctors
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Manage all registered doctors in the system
+            {isRefreshing && (
+              <span className="text-emerald-500 ml-2">(Refreshing...)</span>
+            )}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="border-gray-300 dark:border-slate-600"
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <Input
@@ -254,7 +318,9 @@ export default function AdminDoctors() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Card className="p-4">
           <p className="text-xs text-gray-500">Total Doctors</p>
-          <p className="text-xl font-bold text-gray-900">{doctors.length}</p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">
+            {doctors.length}
+          </p>
         </Card>
         <Card className="p-4">
           <p className="text-xs text-gray-500">Active</p>
@@ -700,5 +766,23 @@ export default function AdminDoctors() {
         </div>
       )}
     </div>
+  );
+}
+
+// Main export with Suspense
+export default function AdminDoctors() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="relative text-center">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto"></div>
+            <p className="mt-4 text-sm text-gray-500">Loading doctors...</p>
+          </div>
+        </div>
+      }
+    >
+      <AdminDoctorsContent />
+    </Suspense>
   );
 }
