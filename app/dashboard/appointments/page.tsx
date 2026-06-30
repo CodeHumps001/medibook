@@ -321,26 +321,39 @@ export default function AppointmentsPage() {
     setSubmitting(true);
 
     try {
-      const { error } = await supabase
+      console.log("Submitting review for appointment:", appointmentId);
+      console.log("Review data:", reviewData);
+
+      const { data, error } = await supabase
         .from("appointments")
         .update({
           rating: reviewData.rating,
           review: reviewData.review.trim(),
         })
-        .eq("id", appointmentId);
+        .eq("id", appointmentId)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error submitting review:", error);
+        toast.error("Failed to submit review: " + error.message);
+        throw error;
+      }
 
+      console.log("Review submitted successfully:", data);
       toast.success("Review submitted successfully!");
+
+      // Reset modal state
       setShowReviewModal(false);
       setReviewData({ rating: 0, review: "" });
       setSelectedAppointment(null);
+
+      // Refresh appointments to show the review
       await fetchAppointments(true);
 
       // Update doctor's rating
       await updateDoctorRating(appointmentId);
     } catch (error: any) {
-      toast.error("Failed to submit review");
+      toast.error(error.message || "Failed to submit review");
       console.error(error);
     } finally {
       setSubmitting(false);
@@ -375,6 +388,12 @@ export default function AppointmentsPage() {
           total_reviews: reviews.length,
         })
         .eq("id", appointment.doctor_id);
+
+      console.log("Doctor rating updated:", {
+        doctor_id: appointment.doctor_id,
+        rating: Math.round(averageRating * 10) / 10,
+        total_reviews: reviews.length,
+      });
     } catch (error) {
       console.error("Error updating doctor rating:", error);
     }
@@ -613,7 +632,8 @@ export default function AppointmentsPage() {
                       </p>
                     </>
                   )}
-                  {appointment.status === "completed" &&
+                  {(appointment.status === "completed" ||
+                    appointment.status === "approved") &&
                     !appointment.has_review && (
                       <Button
                         size="sm"

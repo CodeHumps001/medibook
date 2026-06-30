@@ -32,6 +32,9 @@ import {
   Eye,
   MapPin,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Quote,
 } from "lucide-react";
 
 interface Department {
@@ -48,6 +51,9 @@ interface Doctor {
   qualification: string;
   consultation_fee: number;
   is_active: boolean;
+  bio?: string;
+  rating?: number;
+  total_reviews?: number;
   department: {
     name: string;
   };
@@ -55,6 +61,47 @@ interface Doctor {
     full_name: string;
   };
 }
+
+interface Review {
+  id: string;
+  rating: number;
+  review: string;
+  patient_name: string;
+  created_at: string;
+}
+
+const FAQS = [
+  {
+    question: "How do I book an appointment?",
+    answer:
+      "Simply create an account, search for a doctor by specialty or department, select an available time slot, and confirm your booking. You'll receive a confirmation email immediately.",
+  },
+  {
+    question: "Can I cancel or reschedule my appointment?",
+    answer:
+      "Yes, you can cancel or reschedule your appointment up to 24 hours before the scheduled time. Log in to your dashboard and navigate to 'My Appointments' to manage your bookings.",
+  },
+  {
+    question: "How do I leave a review for my doctor?",
+    answer:
+      "After your appointment is completed, you'll find a 'Leave Review' button in your appointment history. You can rate your doctor from 1-5 stars and leave a detailed review.",
+  },
+  {
+    question: "Is my personal information secure?",
+    answer:
+      "Absolutely! MediBook is fully HIPAA compliant and uses enterprise-grade encryption to protect all your personal and medical information.",
+  },
+  {
+    question: "How do I become a doctor on MediBook?",
+    answer:
+      "If you're a licensed medical professional, you can register as a doctor during sign-up. You'll need to provide your specialization, qualifications, and consultation fee.",
+  },
+  {
+    question: "What payment methods are accepted?",
+    answer:
+      "We accept all major credit cards, debit cards, and mobile money. Your payment will be processed securely at the time of booking.",
+  },
+];
 
 export default function Home() {
   const supabase = createClient();
@@ -65,6 +112,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
+  const [expandedDoctor, setExpandedDoctor] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [stats, setStats] = useState({
     totalPatients: 0,
     totalDoctors: 0,
@@ -82,6 +132,36 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
+    fetchReviews();
+
+    // Set up real-time subscription for new reviews
+    const channel = supabase
+      .channel("reviews-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "appointments",
+        },
+        (payload) => {
+          // Check if the updated record has a rating (meaning it's a review)
+          if (
+            payload.new?.rating !== null &&
+            payload.new?.rating !== undefined
+          ) {
+            console.log("New review added:", payload);
+            fetchReviews();
+          }
+        },
+      )
+      .subscribe((status) => {
+        console.log("Realtime subscription status for reviews:", status);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -106,7 +186,6 @@ export default function Home() {
     try {
       setLoading(true);
 
-      // Fetch departments with doctor counts
       const { data: deptData } = await supabase.from("departments").select(`
           id,
           name,
@@ -128,7 +207,6 @@ export default function Home() {
       );
       setDepartments(deptsWithCounts);
 
-      // Fetch active doctors with their profiles and departments
       const { data: doctorData } = await supabase
         .from("doctors")
         .select(
@@ -138,6 +216,9 @@ export default function Home() {
           qualification,
           consultation_fee,
           is_active,
+          bio,
+          rating,
+          total_reviews,
           profiles (
             full_name
           ),
@@ -157,7 +238,6 @@ export default function Home() {
       setDoctors(formattedDoctors);
       setFilteredDoctors(formattedDoctors.slice(0, 3));
 
-      // Fetch stats
       const { count: patients } = await supabase
         .from("patients")
         .select("*", { count: "exact", head: true });
@@ -183,6 +263,122 @@ export default function Home() {
       setLoading(false);
     }
   }
+
+  async function fetchReviews() {
+    try {
+      console.log("Fetching reviews with simple query...");
+
+      // Simple query without joins
+      const { data, error } = await supabase
+        .from("appointments")
+        .select("*")
+        .not("rating", "is", null)
+        .not("review", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(6);
+
+      if (error) {
+        console.error("Error fetching reviews:", error);
+        return;
+      }
+
+      console.log("Reviews from simple query:", data);
+
+      if (data && data.length > 0) {
+        // Get patient names for each review
+        const reviewsWithNames = await Promise.all(
+          data.map(async (review: any) => {
+            let patientName = "Anonymous Patient";
+            if (review.patient_id) {
+              const { data: profile } = await supabase
+                .from("profiles")
+                .select("full_name")
+                .eq("id", review.patient_id)
+                .single();
+              if (profile) {
+                patientName = profile.full_name;
+              }
+            }
+            return {
+              id: review.id,
+              rating: review.rating,
+              review: review.review,
+              patient_name: patientName,
+              created_at: review.created_at,
+            };
+          }),
+        );
+
+        console.log("Reviews with names:", reviewsWithNames);
+        setReviews(reviewsWithNames);
+      } else {
+        setReviews([]);
+      }
+    } catch (error) {
+      console.error("Error in fetchReviews:", error);
+      setReviews([]);
+    }
+  }
+
+  // Alternative method using separate queries
+  async function fetchReviewsAlternative() {
+    try {
+      // First, get appointments with reviews
+      const { data: appointments, error: appError } = await supabase
+        .from("appointments")
+        .select("id, rating, review, patient_id, created_at")
+        .not("rating", "is", null)
+        .not("review", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(6);
+
+      if (appError || !appointments || appointments.length === 0) {
+        console.log("No appointments with reviews");
+        setReviews([]);
+        return;
+      }
+
+      // Then, get patient names
+      const patientIds = appointments.map((a) => a.patient_id).filter(Boolean);
+      let patientMap: Record<string, string> = {};
+
+      if (patientIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", patientIds);
+
+        if (profiles) {
+          profiles.forEach((p: any) => {
+            patientMap[p.id] = p.full_name;
+          });
+        }
+      }
+
+      // Combine the data
+      const formattedReviews = appointments.map((item: any) => ({
+        id: item.id,
+        rating: item.rating,
+        review: item.review,
+        patient_name: patientMap[item.patient_id] || "Anonymous Patient",
+        created_at: item.created_at,
+      }));
+
+      console.log("Formatted reviews (alternative):", formattedReviews);
+      setReviews(formattedReviews);
+    } catch (error) {
+      console.error("Error in alternative fetchReviews:", error);
+      setReviews([]);
+    }
+  }
+
+  const toggleDoctorExpand = (id: string) => {
+    setExpandedDoctor(expandedDoctor === id ? null : id);
+  };
+
+  const toggleFaq = (index: number) => {
+    setExpandedFaq(expandedFaq === index ? null : index);
+  };
 
   const features = [
     {
@@ -265,36 +461,6 @@ export default function Home() {
     },
   ];
 
-  const testimonials = [
-    {
-      name: "John Anderson",
-      role: "Patient",
-      content:
-        "I was able to see a specialist within 24 hours. The platform is incredibly easy to use and the doctors are top-notch.",
-      rating: 5,
-      avatar: "👨",
-      date: "2 days ago",
-    },
-    {
-      name: "Dr. Sarah Mitchell",
-      role: "Cardiologist",
-      content:
-        "MediBook has transformed how I manage my practice. It's efficient, professional, and my patients love it.",
-      rating: 5,
-      avatar: "👩",
-      date: "1 week ago",
-    },
-    {
-      name: "Emily Thompson",
-      role: "Patient",
-      content:
-        "The best healthcare booking experience I've ever had. The reminders and follow-ups are incredibly helpful.",
-      rating: 5,
-      avatar: "👩",
-      date: "3 days ago",
-    },
-  ];
-
   const colorMap = {
     emerald: "bg-emerald-100 text-emerald-600",
     blue: "bg-blue-100 text-blue-600",
@@ -327,7 +493,6 @@ export default function Home() {
       >
         <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 md:h-20">
-            {/* Logo */}
             <Link
               href="/"
               className="flex items-center space-x-2 flex-shrink-0"
@@ -340,7 +505,6 @@ export default function Home() {
               </span>
             </Link>
 
-            {/* Desktop Navigation */}
             <div className="hidden lg:flex items-center space-x-8">
               <Link
                 href="#features"
@@ -355,14 +519,19 @@ export default function Home() {
                 Doctors
               </Link>
               <Link
-                href="#testimonials"
+                href="#reviews"
                 className="text-sm font-medium text-gray-600 hover:text-emerald-600 transition"
               >
-                Testimonials
+                Reviews
+              </Link>
+              <Link
+                href="#faq"
+                className="text-sm font-medium text-gray-600 hover:text-emerald-600 transition"
+              >
+                FAQ
               </Link>
             </div>
 
-            {/* Desktop Actions */}
             <div className="hidden lg:flex items-center space-x-3">
               <Link href="/login">
                 <Button
@@ -380,7 +549,6 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition"
@@ -393,7 +561,6 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Mobile Menu */}
           <AnimatePresence>
             {mobileMenuOpen && (
               <motion.div
@@ -418,11 +585,18 @@ export default function Home() {
                     Doctors
                   </Link>
                   <Link
-                    href="#testimonials"
+                    href="#reviews"
                     className="text-gray-600 hover:text-emerald-600 transition"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Testimonials
+                    Reviews
+                  </Link>
+                  <Link
+                    href="#faq"
+                    className="text-gray-600 hover:text-emerald-600 transition"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    FAQ
                   </Link>
                   <div className="pt-4 border-t flex flex-col space-y-3">
                     <Link
@@ -454,7 +628,6 @@ export default function Home() {
         <div className="absolute inset-0 bg-grid-pattern opacity-[0.02]"></div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-            {/* Hero Content */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -500,7 +673,6 @@ export default function Home() {
                 </Link>
               </div>
 
-              {/* Stats */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-gray-200/50">
                 <div className="text-center">
                   <p className="text-xl sm:text-2xl font-bold text-gray-900">
@@ -537,7 +709,6 @@ export default function Home() {
               </div>
             </motion.div>
 
-            {/* Hero Image / Cards */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -545,7 +716,6 @@ export default function Home() {
               className="relative"
             >
               <div className="relative bg-white rounded-3xl shadow-2xl p-6 sm:p-8 border border-gray-100">
-                {/* Search Bar */}
                 <div className="flex items-center gap-3 bg-gray-50 rounded-xl p-3 mb-6">
                   <Search className="w-5 h-5 text-gray-400" />
                   <input
@@ -558,13 +728,11 @@ export default function Home() {
                   <Button
                     size="sm"
                     className="bg-emerald-600 hover:bg-emerald-700"
-                    onClick={() => setSearchTerm(searchTerm)}
                   >
                     Search
                   </Button>
                 </div>
 
-                {/* Doctor Cards */}
                 <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
                   {filteredDoctors.length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
@@ -621,14 +789,19 @@ export default function Home() {
                         />
                       ))}
                       <span className="ml-2 text-sm font-medium text-gray-900">
-                        4.9
+                        {reviews.length > 0
+                          ? (
+                              reviews.reduce((acc, r) => acc + r.rating, 0) /
+                              reviews.length
+                            ).toFixed(1)
+                          : "4.9"}
                       </span>
                       <span className="text-sm text-gray-500">
-                        ({stats.totalAppointments.toLocaleString()}+ reviews)
+                        ({reviews.length || 2500}+ reviews)
                       </span>
                     </div>
                     <Link
-                      href="#doctors"
+                      href="/doctors"
                       className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center"
                     >
                       See all doctors
@@ -708,27 +881,29 @@ export default function Home() {
             {specialties.map((specialty) => {
               const Icon = specialty.icon;
               return (
-                <Card
+                <Link
+                  href={`/doctors?specialty=${specialty.name}`}
                   key={specialty.name}
-                  className="p-4 text-center hover:shadow-lg transition-all cursor-pointer group border border-gray-100 hover:border-emerald-200"
                 >
-                  <div className="w-12 h-12 mx-auto bg-emerald-100 rounded-xl flex items-center justify-center mb-2 group-hover:bg-emerald-500 transition">
-                    <Icon className="w-6 h-6 text-emerald-600 group-hover:text-white transition" />
-                  </div>
-                  <p className="font-medium text-sm text-gray-900">
-                    {specialty.name}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {specialty.count} doctors
-                  </p>
-                </Card>
+                  <Card className="p-4 text-center hover:shadow-lg transition-all cursor-pointer group border border-gray-100 hover:border-emerald-200">
+                    <div className="w-12 h-12 mx-auto bg-emerald-100 rounded-xl flex items-center justify-center mb-2 group-hover:bg-emerald-500 transition">
+                      <Icon className="w-6 h-6 text-emerald-600 group-hover:text-white transition" />
+                    </div>
+                    <p className="font-medium text-sm text-gray-900">
+                      {specialty.name}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {specialty.count} doctors
+                    </p>
+                  </Card>
+                </Link>
               );
             })}
           </div>
         </div>
       </section>
 
-      {/* Top Doctors */}
+      {/* Top Doctors with Expandable Cards */}
       <section id="doctors" className="py-16 sm:py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-12 gap-4">
@@ -760,7 +935,7 @@ export default function Home() {
                 transition={{ delay: index * 0.1 }}
                 viewport={{ once: true }}
               >
-                <Card className="p-6 text-center hover:shadow-xl transition-all duration-300 group border border-gray-100 hover:border-emerald-200">
+                <Card className="p-6 hover:shadow-xl transition-all duration-300 group border border-gray-100 hover:border-emerald-200">
                   <div className="text-5xl mb-3">👨‍⚕️</div>
                   <h3 className="text-lg font-semibold text-gray-900 group-hover:text-emerald-600 transition">
                     {doctor.full_name}
@@ -778,21 +953,81 @@ export default function Home() {
                   )}
                   <div className="flex items-center justify-center mt-2">
                     <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                    <span className="ml-1 text-sm font-medium">4.9</span>
+                    <span className="ml-1 text-sm font-medium">
+                      {doctor.rating || 4.9}
+                    </span>
                     <span className="mx-1 text-gray-300">•</span>
-                    <span className="text-sm text-gray-500">234 reviews</span>
+                    <span className="text-sm text-gray-500">
+                      {doctor.total_reviews || 234} reviews
+                    </span>
                   </div>
                   <div className="mt-4">
                     <Badge className="bg-emerald-100 text-emerald-700">
                       Available Today
                     </Badge>
                   </div>
-                  <Button
-                    variant="outline"
-                    className="w-full mt-4 border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-300"
+
+                  <button
+                    onClick={() => toggleDoctorExpand(doctor.id)}
+                    className="w-full mt-3 text-sm text-emerald-600 hover:text-emerald-700 flex items-center justify-center gap-1"
                   >
-                    View Profile
-                  </Button>
+                    {expandedDoctor === doctor.id ? (
+                      <>
+                        Hide Details <ChevronUp className="w-4 h-4" />
+                      </>
+                    ) : (
+                      <>
+                        View Profile <ChevronDown className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+
+                  <AnimatePresence>
+                    {expandedDoctor === doctor.id && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-4 pt-4 border-t border-gray-200 text-left"
+                      >
+                        <div className="space-y-2 text-sm">
+                          {doctor.bio && (
+                            <p className="text-gray-600">
+                              <span className="font-medium">Bio:</span>{" "}
+                              {doctor.bio}
+                            </p>
+                          )}
+                          {doctor.qualification && (
+                            <p className="text-gray-600">
+                              <span className="font-medium">
+                                Qualification:
+                              </span>{" "}
+                              {doctor.qualification}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <Link href="/dashboard/book-appointment">
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                              >
+                                Book Appointment
+                              </Button>
+                            </Link>
+                            <Link href={`/doctors`}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-emerald-200 text-emerald-600"
+                              >
+                                Full Profile
+                              </Button>
+                            </Link>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </Card>
               </motion.div>
             ))}
@@ -800,58 +1035,142 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section id="testimonials" className="py-16 sm:py-20 bg-gray-50">
+      {/* Reviews Section */}
+      <section id="reviews" className="py-16 sm:py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 mb-4">
-              Testimonials
+              Patient Reviews
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
-              What our <span className="text-emerald-600">users say</span>
+              Real <span className="text-emerald-600">Reviews</span> from Real
+              Patients
             </h2>
             <p className="mt-4 text-lg text-gray-600">
-              Real experiences from real people who trust MediBook
+              Hear what our patients say about their experience with MediBook
+              doctors
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, index) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {reviews.length > 0 ? (
+              reviews.map((review, index) => (
+                <motion.div
+                  key={review.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  viewport={{ once: true }}
+                >
+                  <Card className="p-6 hover:shadow-xl transition-shadow border border-gray-100">
+                    <div className="flex items-center gap-1 mb-3">
+                      {[...Array(5)].map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-4 h-4 ${
+                            i < review.rating
+                              ? "text-yellow-400 fill-current"
+                              : "text-gray-300"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                      "{review.review}"
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-semibold text-sm">
+                          {review.patient_name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">
+                            {review.patient_name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(review.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs text-emerald-600 font-medium">
+                        Verified Patient
+                      </span>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-12">
+                <div className="flex flex-col items-center">
+                  <Star className="w-12 h-12 text-gray-300 mb-3" />
+                  <p className="text-gray-500">No reviews yet</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Be the first to leave a review after your appointment!
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section id="faq" className="py-16 sm:py-20 bg-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 mb-4">
+              FAQ
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
+              Frequently Asked{" "}
+              <span className="text-emerald-600">Questions</span>
+            </h2>
+            <p className="mt-4 text-lg text-gray-600">
+              Find answers to common questions about using MediBook
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {FAQS.map((faq, index) => (
               <motion.div
-                key={testimonial.name}
-                initial={{ opacity: 0, y: 20 }}
+                key={index}
+                initial={{ opacity: 0, y: 10 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
+                transition={{ delay: index * 0.05 }}
                 viewport={{ once: true }}
               >
-                <Card className="p-6 hover:shadow-xl transition-shadow border border-gray-100">
-                  <div className="flex items-center gap-1 mb-3">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className="w-4 h-4 text-yellow-400 fill-current"
-                      />
-                    ))}
-                  </div>
-                  <p className="text-gray-600 text-sm leading-relaxed mb-4">
-                    "{testimonial.content}"
-                  </p>
+                <Card
+                  className={`p-6 cursor-pointer transition-all duration-300 border ${
+                    expandedFaq === index
+                      ? "border-emerald-200 shadow-md"
+                      : "border-gray-100 hover:border-emerald-100"
+                  }`}
+                  onClick={() => toggleFaq(index)}
+                >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <span className="text-2xl">{testimonial.avatar}</span>
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">
-                          {testimonial.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {testimonial.role}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-xs text-gray-400">
-                      {testimonial.date}
-                    </span>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 pr-4">
+                      {faq.question}
+                    </h3>
+                    {expandedFaq === index ? (
+                      <ChevronUp className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    )}
                   </div>
+                  <AnimatePresence>
+                    {expandedFaq === index && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <p className="text-gray-600 text-sm leading-relaxed pt-4">
+                          {faq.answer}
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </Card>
               </motion.div>
             ))}
@@ -922,18 +1241,13 @@ export default function Home() {
                   </Link>
                 </li>
                 <li>
+                  <Link href="/doctors" className="hover:text-white transition">
+                    Doctors
+                  </Link>
+                </li>
+                <li>
                   <Link href="#" className="hover:text-white transition">
                     Pricing
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition">
-                    Security
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition">
-                    Integrations
                   </Link>
                 </li>
               </ul>
@@ -956,19 +1270,14 @@ export default function Home() {
                     Blog
                   </Link>
                 </li>
-                <li>
-                  <Link href="#" className="hover:text-white transition">
-                    Press
-                  </Link>
-                </li>
               </ul>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Support</h4>
               <ul className="space-y-2 text-sm text-gray-400">
                 <li>
-                  <Link href="#" className="hover:text-white transition">
-                    Help Center
+                  <Link href="#faq" className="hover:text-white transition">
+                    FAQ
                   </Link>
                 </li>
                 <li>
