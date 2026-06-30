@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,8 @@ interface Doctor {
   appointment_count: number;
 }
 
-export default function AdminDoctors() {
+function AdminDoctorsContent() {
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -700,5 +702,23 @@ export default function AdminDoctors() {
         </div>
       )}
     </div>
+  );
+}
+
+// Main export with Suspense
+export default function AdminDoctors() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="relative text-center">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto"></div>
+            <p className="mt-4 text-sm text-gray-500">Loading doctors...</p>
+          </div>
+        </div>
+      }
+    >
+      <AdminDoctorsContent />
+    </Suspense>
   );
 }
