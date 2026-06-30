@@ -81,31 +81,31 @@ export default function AdminLayout({
   };
 
   const navigation = [
-    { name: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
-    { name: "Patients", href: "/dashboard/admin/patients", icon: Users },
-    { name: "Doctors", href: "/dashboard/admin/doctors", icon: Stethoscope },
+    { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    { name: "Patients", href: "/admin/patients", icon: Users },
+    { name: "Doctors", href: "/admin/doctors", icon: Stethoscope },
     {
       name: "Departments",
-      href: "/dashboard/admin/departments",
+      href: "/admin/departments",
       icon: Building2,
     },
     {
       name: "Appointments",
-      href: "/dashboard/admin/appointments",
+      href: "/admin/appointments",
       icon: Calendar,
     },
-    { name: "Reports", href: "/dashboard/admin/reports", icon: FileText },
-    { name: "Settings", href: "/dashboard/admin/settings", icon: Settings },
+    { name: "Reports", href: "/admin/reports", icon: FileText },
+    { name: "Settings", href: "/admin/settings", icon: Settings },
   ];
 
   // Mobile bottom navigation
   const mobileTabs = [
-    { name: "Home", href: "/dashboard/admin", icon: Home },
-    { name: "Patients", href: "/dashboard/admin/patients", icon: Users },
-    { name: "Doctors", href: "/dashboard/admin/doctors", icon: Stethoscope },
+    { name: "Home", href: "/admin", icon: Home },
+    { name: "Patients", href: "/admin/patients", icon: Users },
+    { name: "Doctors", href: "/admin/doctors", icon: Stethoscope },
     {
       name: "Appointments",
-      href: "/dashboard/admin/appointments",
+      href: "/admin/appointments",
       icon: CalendarDays,
     },
     { name: "More", href: "#", icon: Menu, isMore: true },
