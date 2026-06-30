@@ -36,6 +36,7 @@ import {
   ChevronUp,
   Quote,
 } from "lucide-react";
+import Image from "next/image";
 
 interface Department {
   id: string;
@@ -497,8 +498,15 @@ export default function Home() {
               href="/"
               className="flex items-center space-x-2 flex-shrink-0"
             >
-              <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
-                <HeartPulse className="w-5 h-5 text-white" />
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden shadow-lg shadow-emerald-500/25">
+                <Image
+                  src="/logo.jpeg"
+                  alt="MediBook Logo"
+                  width={36}
+                  height={36}
+                  className="object-cover"
+                  priority
+                />
               </div>
               <span className="text-xl font-bold text-gray-900">
                 Medi<span className="text-emerald-600">Book</span>
@@ -1214,13 +1222,20 @@ export default function Home() {
       </section>
 
       {/* Footer */}
+      {/* Footer */}
       <footer className="bg-gray-900 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-8">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 pb-8 border-b border-gray-800">
             <div className="col-span-2 sm:col-span-1">
               <Link href="/" className="flex items-center space-x-2 mb-4">
-                <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center">
-                  <HeartPulse className="w-5 h-5 text-white" />
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden">
+                  <Image
+                    src="/logo.jpeg"
+                    alt="MediBook Logo"
+                    width={36}
+                    height={36}
+                    className="object-cover"
+                  />
                 </div>
                 <span className="text-xl font-bold">MediBook</span>
               </Link>
@@ -1228,6 +1243,72 @@ export default function Home() {
                 Your trusted healthcare booking platform. Making healthcare
                 accessible for everyone.
               </p>
+              <div className="flex space-x-4 mt-4">
+                <a
+                  href="#"
+                  className="text-gray-400 hover:text-white transition"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </a>
+                <a
+                  href="#"
+                  className="text-gray-400 hover:text-white transition"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.713v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
+                  </svg>
+                </a>
+                <a
+                  href="#"
+                  className="text-gray-400 hover:text-white transition"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.048-1.067-.06-1.407-.06-4.123v-.08c0-2.643.012-2.987.06-4.043.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772 4.902 4.902 0 011.772-1.153c.636-.247 1.363-.416 2.427-.465C9.5 2.013 9.825 2 12.315 2zm0 1.336c-2.387 0-2.729.009-3.704.054-1.022.05-1.583.217-1.946.365-.477.194-.818.423-1.178.783-.36.36-.589.701-.783 1.178-.148.363-.314.924-.365 1.946-.045.975-.054 1.317-.054 3.704s.009 2.729.054 3.704c.05 1.022.217 1.583.365 1.946.194.477.423.818.783 1.178.36.36.701.589 1.178.783.363.148.924.314 1.946.365.975.045 1.317.054 3.704.054s2.729-.009 3.704-.054c1.022-.05 1.583-.217 1.946-.365.477-.194.818-.423 1.178-.783.36-.36.589-.701.783-1.178.148-.363.314-.924.365-1.946.045-.975.054-1.317.054-3.704s-.009-2.729-.054-3.704c-.05-1.022-.217-1.583-.365-1.946-.194-.477-.423-.818-.783-1.178-.36-.36-.701-.589-1.178-.783-.363-.148-.924-.314-1.946-.365-.975-.045-1.317-.054-3.704-.054zM12.315 7.24a4.76 4.76 0 100 9.52 4.76 4.76 0 000-9.52zm0 1.337a3.423 3.423 0 110 6.846 3.423 3.423 0 010-6.846zm4.808-3.336a.9.9 0 100 1.8.9.9 0 000-1.8z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </a>
+                <a
+                  href="#"
+                  className="text-gray-400 hover:text-white transition"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878-.003-.985-.016-2.258-.328-3.266-.362-1.167-.805-2.398-.805-2.398s-.256-.633-.256-1.583c0-1.48.86-2.59 1.93-2.59.91 0 1.35.684 1.35 1.5 0 .915-.583 2.284-.884 3.553-.15.647.324 1.173 1.218 1.173 1.462 0 2.586-1.543 2.586-3.77 0-1.97-1.416-3.349-3.438-3.349-2.341 0-3.715 1.756-3.715 3.571 0 .708.273 1.464.614 1.877.067.083.077.156.058.24-.071.293-.206.786-.232.896-.037.162-.122.196-.28.118-1.048-.489-1.704-2.023-1.704-3.256 0-2.65 1.924-5.083 5.552-5.083 2.915 0 5.18 2.077 5.18 4.854 0 2.896-1.827 5.228-4.36 5.228-.852 0-1.653-.443-1.927-.967 0 0-.421 1.604-.523 1.997-.189.727-.699 1.464-1.042 1.961.783.241 1.614.372 2.478.372 5.523 0 10-4.477 10-10S17.523 2 12 2z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </a>
+              </div>
             </div>
             <div>
               <h4 className="font-semibold mb-4">Product</h4>

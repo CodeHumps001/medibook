@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -123,8 +124,14 @@ export default function AdminLayout({
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/25">
-              <Shield className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+              <Image
+                src="/logo.jpeg"
+                alt="MediBook Logo"
+                width={32}
+                height={32}
+                className="object-cover"
+              />
             </div>
             <span className="text-sm font-bold text-gray-900 dark:text-white">
               Medi<span className="text-emerald-600">Book</span>
@@ -167,8 +174,15 @@ export default function AdminLayout({
         <div className="flex flex-col h-full">
           {/* Logo - Desktop */}
           <div className="hidden lg:flex items-center space-x-2 p-6 border-b border-gray-200 dark:border-slate-700">
-            <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
-              <Shield className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden shadow-lg shadow-emerald-500/25">
+              <Image
+                src="/logo.jpeg"
+                alt="MediBook Logo"
+                width={40}
+                height={40}
+                className="object-cover"
+                priority
+              />
             </div>
             <span className="text-lg font-bold text-gray-900 dark:text-white">
               Medi<span className="text-emerald-600">Book</span>
@@ -181,8 +195,14 @@ export default function AdminLayout({
           {/* Mobile Sidebar Header */}
           <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/25">
-                <Shield className="w-4 h-4 text-white" />
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden">
+                <Image
+                  src="/logo.jpeg"
+                  alt="MediBook Logo"
+                  width={32}
+                  height={32}
+                  className="object-cover"
+                />
               </div>
               <span className="text-sm font-bold text-gray-900 dark:text-white">
                 Medi<span className="text-emerald-600">Book</span>

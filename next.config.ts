@@ -1,14 +1,27 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  allowedDevOrigins: ["172.20.10.7"],
   experimental: {
     optimizeCss: true,
   },
-};
-
-module.exports = {
-  allowedDevOrigins: ["172.20.10.7"],
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+        port: "",
+        pathname: "/**",
+      },
+      // Add any other image hosts you need
+      // {
+      //   protocol: "https",
+      //   hostname: "res.cloudinary.com",
+      //   port: "",
+      //   pathname: "/**",
+      // },
+    ],
+  },
 };
 
 export default nextConfig;

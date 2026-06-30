@@ -40,28 +40,19 @@ export default function LoginPage() {
 
       if (error) throw error;
 
-      // After successful login, fetch the user's role
       if (data.user) {
-        // Wait a moment for the trigger to complete
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", data.user.id)
-          .maybeSingle(); // Use maybeSingle to avoid errors
+          .maybeSingle();
 
         if (profileError) {
           console.error("Error fetching profile:", profileError);
-          // If profile doesn't exist, redirect to dashboard as patient
           router.push("/dashboard");
-          router.refresh();
           return;
         }
 
-        console.log("User role:", profile?.role);
-
-        // Redirect based on role
         if (profile?.role === "doctor") {
           toast.success(`Welcome Dr. ${email}!`);
           router.push("/doctor");
@@ -72,8 +63,9 @@ export default function LoginPage() {
           toast.success("Login successful!");
           router.push("/dashboard");
         }
-        router.refresh();
       }
+
+      router.refresh();
     } catch (error: any) {
       toast.error(error.message || "Login failed. Please try again.");
     } finally {
@@ -88,54 +80,95 @@ export default function LoginPage() {
     { icon: Calendar, text: "Easy Appointment Booking" },
   ];
 
+  const floatingImages = [
+    {
+      src: "https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=200&h=200&fit=crop&crop=center",
+      alt: "Doctor Consultation",
+      className: "w-20 h-20 rounded-full shadow-xl",
+      top: "10%",
+      left: "5%",
+      animation: "float-slow",
+    },
+    {
+      src: "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=200&h=200&fit=crop&crop=center",
+      alt: "Modern Hospital",
+      className: "w-32 h-32 rounded-2xl shadow-xl",
+      top: "25%",
+      right: "8%",
+      animation: "float-medium",
+    },
+    {
+      src: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=200&h=200&fit=crop&crop=center",
+      alt: "Doctor with Patient",
+      className: "w-24 h-24 rounded-full shadow-xl",
+      bottom: "20%",
+      left: "10%",
+      animation: "float-fast",
+    },
+    {
+      src: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=200&h=200&fit=crop&crop=center",
+      alt: "Healthcare App",
+      className: "w-28 h-28 rounded-2xl shadow-xl",
+      bottom: "30%",
+      right: "5%",
+      animation: "float-slow",
+    },
+  ];
+
   return (
     <div className="min-h-screen flex">
-      {/* Left Side - Image Grid */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-emerald-600 to-emerald-700 p-8 flex-col justify-between">
-        {/* Background Pattern */}
         <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
 
-        {/* Logo */}
+        <div className="absolute inset-0 overflow-hidden">
+          {floatingImages.map((img, index) => (
+            <div
+              key={index}
+              className={`absolute ${img.animation}`}
+              style={{
+                top: img.top,
+                left: img.left,
+                right: img.right,
+                bottom: img.bottom,
+              }}
+            >
+              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-2 border border-white/20 shadow-2xl hover:scale-110 transition-transform duration-300 cursor-pointer">
+                <Image
+                  src={img.src}
+                  alt={img.alt}
+                  width={parseInt(img.className.match(/w-(\d+)/)?.[1] || "80")}
+                  height={parseInt(img.className.match(/h-(\d+)/)?.[1] || "80")}
+                  className={`${img.className} object-cover`}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
         <div className="relative z-10">
-          <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-              <HeartPulse className="w-6 h-6 text-white" />
+          <Link href="/" className="flex items-center space-x-2">
+            <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center overflow-hidden">
+              <Image
+                src="/logo.jpeg"
+                alt="MediBook Logo"
+                width={40}
+                height={40}
+                className="object-cover"
+              />
             </div>
             <span className="text-2xl font-bold text-white">
               Medi<span className="text-emerald-200">Book</span>
             </span>
-          </div>
+          </Link>
         </div>
 
-        {/* Image Grid */}
-        <div className="relative z-10 flex-1 flex items-center justify-center">
-          <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
-            <div className="space-y-4">
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-center border border-white/10">
-                <div className="text-4xl mb-2">🏥</div>
-                <p className="text-white font-medium text-sm">
-                  Modern Healthcare
-                </p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-center border border-white/10">
-                <div className="text-4xl mb-2">👨‍⚕️</div>
-                <p className="text-white font-medium text-sm">Expert Doctors</p>
-              </div>
-            </div>
-            <div className="space-y-4 mt-8">
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-center border border-white/10">
-                <div className="text-4xl mb-2">💊</div>
-                <p className="text-white font-medium text-sm">Quality Care</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 text-center border border-white/10">
-                <div className="text-4xl mb-2">📅</div>
-                <p className="text-white font-medium text-sm">Easy Booking</p>
-              </div>
-            </div>
-          </div>
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center">
+          <h2 className="text-4xl font-bold text-white mb-4">Welcome Back</h2>
+          <p className="text-emerald-100 text-lg max-w-sm">
+            Sign in to continue your healthcare journey
+          </p>
         </div>
 
-        {/* Features List */}
         <div className="relative z-10 grid grid-cols-2 gap-3">
           {features.map((feature, index) => {
             const Icon = feature.icon;
@@ -155,19 +188,26 @@ export default function LoginPage() {
       {/* Right Side - Login Form */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-8 bg-white dark:bg-slate-900">
         <div className="w-full max-w-md space-y-8">
-          {/* Mobile Logo */}
           <div className="lg:hidden text-center">
-            <div className="flex items-center justify-center space-x-2 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
-                <HeartPulse className="w-7 h-7 text-white" />
+            <Link
+              href="/"
+              className="flex items-center justify-center space-x-2 mb-4"
+            >
+              <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/25 overflow-hidden">
+                <Image
+                  src="/logo.jpeg"
+                  alt="MediBook Logo"
+                  width={48}
+                  height={48}
+                  className="object-cover"
+                />
               </div>
               <span className="text-2xl font-bold text-gray-900 dark:text-white">
                 Medi<span className="text-emerald-600">Book</span>
               </span>
-            </div>
+            </Link>
           </div>
 
-          {/* Header */}
           <div className="text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
               Welcome Back
@@ -177,7 +217,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Form */}
           <Card className="p-6 sm:p-8 border-0 shadow-lg dark:shadow-slate-800/10">
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-4">
@@ -236,7 +275,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* Divider */}
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-200 dark:border-slate-700"></div>
@@ -248,7 +286,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Register Link */}
             <Link href="/register">
               <Button
                 variant="outline"
@@ -260,7 +297,6 @@ export default function LoginPage() {
             </Link>
           </Card>
 
-          {/* Trust Badge */}
           <div className="text-center">
             <div className="flex items-center justify-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
               <span className="flex items-center gap-1">

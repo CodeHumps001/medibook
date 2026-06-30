@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import toast from "react-hot-toast";
 import {
   HeartPulse,
@@ -136,15 +138,21 @@ export default function DashboardLayout({
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/25">
-              <HeartPulse className="w-4 h-4 text-white" />
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shadow-lg shadow-emerald-500/25">
+              <Image
+                src="/logo.jpeg"
+                alt="MediBook Logo"
+                width={32}
+                height={32}
+                className="object-cover"
+              />
             </div>
             <span className="text-sm font-bold text-gray-900 dark:text-white">
               Medi<span className="text-emerald-600">Book</span>
             </span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-[10px] px-2 py-0.5 rounded-full">
               Patient
-            </span>
+            </Badge>
           </div>
           <div className="flex items-center gap-2">
             {/* Mobile Logout Button */}
@@ -181,22 +189,35 @@ export default function DashboardLayout({
         <div className="flex flex-col h-full">
           {/* Logo - Desktop */}
           <div className="hidden lg:flex items-center space-x-2 p-6 border-b border-gray-200 dark:border-slate-700">
-            <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25">
-              <HeartPulse className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden shadow-lg shadow-emerald-500/25">
+              <Image
+                src="/logo.jpeg"
+                alt="MediBook Logo"
+                width={40}
+                height={40}
+                className="object-cover"
+                priority
+              />
             </div>
             <span className="text-lg font-bold text-gray-900 dark:text-white">
               Medi<span className="text-emerald-600">Book</span>
             </span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 px-2 py-0.5 rounded-full ml-1">
+            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-[10px] px-2 py-0.5 rounded-full ml-1">
               Patient
-            </span>
+            </Badge>
           </div>
 
           {/* Mobile Sidebar Header */}
           <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-500/25">
-                <HeartPulse className="w-4 h-4 text-white" />
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center overflow-hidden shadow-lg shadow-emerald-500/25">
+                <Image
+                  src="/logo.jpeg"
+                  alt="MediBook Logo"
+                  width={32}
+                  height={32}
+                  className="object-cover"
+                />
               </div>
               <span className="text-sm font-bold text-gray-900 dark:text-white">
                 Medi<span className="text-emerald-600">Book</span>
